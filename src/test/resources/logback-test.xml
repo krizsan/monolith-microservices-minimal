@@ -6,7 +6,15 @@
     <logger name="se.ivankrizsan" level="DEBUG"/>
     <logger name="ch.qos.logback" level="ERROR"/>
 
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %clr(%d{HH:mm:ss}){faint} %m%n%wEx
+            </Pattern>
+        </layout>
+    </appender>
+
     <root level="WARN">
-        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="STDOUT"/>
     </root>
 </configuration>
