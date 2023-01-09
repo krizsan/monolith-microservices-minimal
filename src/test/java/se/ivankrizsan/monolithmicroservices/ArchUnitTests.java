@@ -5,6 +5,9 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.library.dependencies.SliceAssignment;
+import com.tngtech.archunit.library.dependencies.SliceIdentifier;
+import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +23,7 @@ import java.util.function.Function;
 @Slf4j
 public class ArchUnitTests {
     public static final String APPLICATION_ROOT_PACKAGE = "se.ivankrizsan";
+
 
     /**
      * Lists the dependencies of the classes in this example application contained
@@ -41,5 +45,49 @@ public class ArchUnitTests {
                 .distinct()
                 .forEach(inClassDependency -> log.info("    {}", inClassDependency));
         }
+    }
+
+    /**
+     * Lists the classes of the application, including test-classes, and the slice to which
+     * each class belongs to, if any.
+     */
+    @Test
+    public void listClassSliceTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        /* Maps Java classes to slices specifying which classes belong to a slice. */
+        final SliceAssignment theClassToModulesSliceMapper = new ModulesSliceAssignment();
+
+        for (JavaClass theJavaClass : theClassesToCheck) {
+            final SliceIdentifier theJavaClassSlice = theClassToModulesSliceMapper.getIdentifierOf(theJavaClass);
+            final String theJavaClassName = String.format("%-120s", theJavaClass.getName());
+            log.info("{} - {}", theJavaClassName, theJavaClassSlice.toString());
+        }
+    }
+
+    /**
+     * Ensures that there is no access to non-public parts of modules from code in other
+     * modules.
+     * TODO Want to ensure that there is no access to non-public parts of modules from
+     * code that does not belong to a module.
+     * TODO Want to ensure that there is no access to non-public parts of other modules
+     * from code that belongs to the api or configuration packages of one module.
+     */
+    @Test
+    public void noAccessToModuleNonPublicCodeTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        /* Maps Java classes to slices specifying which classes belong to a slice. */
+        final SliceAssignment theClassToModulesSliceMapper = new ModulesSliceAssignment();
+
+        SlicesRuleDefinition.slices()
+            .assignedFrom(theClassToModulesSliceMapper)
+            .should()
+            .notDependOnEachOther()
+            .because("this violates module encapsulation")
+            .check(theClassesToCheck);
     }
 }
