@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A {@code SliceAssignment} which maps modules in the proposed architecture to ArchUnit slices.
+ * A {@code SliceAssignment} which maps classes in modules to ArchUnit slices.
  *
  * @author Ivan Krizsan
  */
@@ -37,8 +37,6 @@ public class ModulesSliceAssignment implements SliceAssignment {
     public static final String MODULE_API_PACKAGE_NAME = "api";
     /** Name of configuration first-level subpackage in module that should be accessible from anywhere. */
     public static final String MODULE_CONFIGURATION_PACKAGE_NAME = "configuration";
-
-    /* Instance variable(s): */
 
 
     @Override

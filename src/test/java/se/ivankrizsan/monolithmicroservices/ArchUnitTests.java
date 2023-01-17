@@ -1,18 +1,23 @@
 package se.ivankrizsan.monolithmicroservices;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.PackageMatcher;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.library.Architectures;
 import com.tngtech.archunit.library.dependencies.SliceAssignment;
 import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Tests the application's adherence to the proposed structure which purpose
@@ -67,15 +72,12 @@ public class ArchUnitTests {
     }
 
     /**
-     * Ensures that there is no access to non-public parts of modules from code in other
-     * modules.
-     * TODO Want to ensure that there is no access to non-public parts of modules from
-     * code that does not belong to a module.
-     * TODO Want to ensure that there is no access to non-public parts of other modules
-     * from code that belongs to the api or configuration packages of one module.
+     * Ensures that there is no access between non-public parts of modules.
+     * Each ArchUnit slice consists of the non-public part of each module.
+     * There should be no dependencies between slices.
      */
     @Test
-    public void noAccessToModuleNonPublicCodeTest() {
+    public void noAccessBetweenNonPublicPartsOfModulesTest() {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
             .importPackages(APPLICATION_ROOT_PACKAGE);
@@ -89,5 +91,145 @@ public class ArchUnitTests {
             .notDependOnEachOther()
             .because("this violates module encapsulation")
             .check(theClassesToCheck);
+    }
+
+    /**
+     * Lists all the classes in the application that are considered non-public module classes.
+     * Such classes are located in modules but not in packages which are designated to contain
+     * classes that may be accessed from outside the module, i.e. the 'api' and 'configuration' packages.
+     */
+    @Test
+    public void nonPublicModuleClassesTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        final Predicate<JavaClass> theModuleNonPublicPredicate = createModulesNonPublicClassesPredicate();
+
+        final Set<JavaClass> theNonPublicModuleClasses = new HashSet<>();
+        for (JavaClass theJavaClass : theClassesToCheck) {
+            if (theModuleNonPublicPredicate.test(theJavaClass)) {
+                theNonPublicModuleClasses.add(theJavaClass);
+            }
+        }
+
+        log.info("Non-public classes in modules: ");
+        for (JavaClass theModuleClass : theNonPublicModuleClasses) {
+            log.info("   {}", theModuleClass);
+        }
+    }
+
+    /**
+     * Lists all the classes in the application that do not belong to a module.
+     */
+    @Test
+    public void nonModuleClassesTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        final Predicate<JavaClass> theModuleNonPublicPredicate = createNonModulesClassesPredicate();
+
+        final Set<JavaClass> theNonPublicModuleClasses = new HashSet<>();
+        for (JavaClass theJavaClass : theClassesToCheck) {
+            if (theModuleNonPublicPredicate.test(theJavaClass)) {
+                theNonPublicModuleClasses.add(theJavaClass);
+            }
+        }
+
+        log.info("Classes not belonging to any module: ");
+        for (JavaClass theModuleClass : theNonPublicModuleClasses) {
+            log.info("   {}", theModuleClass);
+        }
+    }
+
+    /**
+     * Ensures that:
+     * <li>Application code not belonging to any module may not be accessed from the public or non-public parts of modules.</li>
+     * <li>Code in the non-public part of a module may only be accessed by the code in the public part of the module.</li>
+     * <li>Public parts of modules may be accessed by code not belonging to a module and non-public parts of modules.</li>
+     *
+     * The application code is divided in three layers:
+     * <li>Public Module - Parts of modules that may be accessed from other modules and external, non-module, code.</li>
+     * <li>Non-public Module - Parts of modules that may not be accessed from anywhere but the public part of the same module.</li>
+     * <li>Non-module - Code outside of modules</li>
+     *
+     * <br/><b>Note!</b> No control of access between non-public parts of modules is performed - this is verified in the
+     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.
+     */
+    @Test
+    public void moduleNonPublicToExternalAccessButNotViceVersaTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        Architectures
+            .layeredArchitecture()
+            .consideringAllDependencies()
+            .layer("PublicModule").definedBy(createModulesPublicClassesPredicate())
+            .layer("NonPublicModule").definedBy(createModulesNonPublicClassesPredicate())
+            .layer("NonModule").definedBy(createNonModulesClassesPredicate())
+            .whereLayer("PublicModule").mayOnlyBeAccessedByLayers("NonModule", "NonPublicModule")
+            .whereLayer("NonPublicModule").mayOnlyBeAccessedByLayers("PublicModule")
+            .whereLayer("NonModule").mayNotBeAccessedByAnyLayer()
+            .check(theClassesToCheck);
+    }
+
+    /**
+     * Tests a package-matching expression against a package.
+     * Will log the result of the attempted matching and always succeed.
+     * Can be used to verify package-matching expressions.
+     */
+    @Test
+    public void packageMatchingExpressionTest() {
+        final String thePackage = "se.ivankrizsan.monolithmicroservices.modules.shoppingcart.api";
+        final String thePackageMatchingExpression = "..modules.(*).[api|configuration]..";
+
+        final PackageMatcher thePackageMatcher = PackageMatcher.of(thePackageMatchingExpression);
+        final boolean thePackageMatchedFlag = thePackageMatcher.matches(thePackage);
+        log.info("Attempted matching of package '{}' with the expression '{}' rendered the result: {}",
+            thePackage, thePackageMatchingExpression, thePackageMatchedFlag);
+    }
+
+    /**
+     * Creates an ArchUnit predicate that will select classes that:
+     * - Are located in a package at least one level below the 'modules' package.
+     *   That is, are located in a module.
+     * - Are not located in a package named 'api' or 'configuration' in a module.
+     *
+     * @return Predicate that will select non-public module classes.
+     */
+    private DescribedPredicate<JavaClass> createModulesNonPublicClassesPredicate() {
+        final DescribedPredicate<JavaClass> theResideInModulePredicate =
+            JavaClass.Predicates.resideInAPackage("..modules.(*)..");
+        final DescribedPredicate<JavaClass> theModulePublicPredicate =
+            JavaClass.Predicates.resideInAPackage("..modules.(*).[api|configuration]..");
+        final DescribedPredicate<JavaClass> theNotModulePublicPredicate =
+            DescribedPredicate.not(theModulePublicPredicate);
+        final DescribedPredicate<JavaClass> theModuleNonPublicPredicate =
+            theResideInModulePredicate.and(theNotModulePublicPredicate);
+        return theModuleNonPublicPredicate;
+    }
+
+    /**
+     * Creates an ArchUnit predicate that will select classes that does not belong to any module.
+     *
+     * @return Predicate that will select non-module classes.
+     */
+    private DescribedPredicate<JavaClass> createNonModulesClassesPredicate() {
+        final DescribedPredicate<JavaClass> theResideInModulePredicate =
+            JavaClass.Predicates.resideInAPackage("..modules.(*)..");
+        return DescribedPredicate.not(theResideInModulePredicate);
+    }
+
+    /**
+     * Creates an ArchUnit predicate that will select public classes in modules.
+     *
+     * @return Predicate that will select public module classes.
+     */
+    private DescribedPredicate<JavaClass> createModulesPublicClassesPredicate() {
+        final DescribedPredicate<JavaClass> theModulePublicPredicate =
+            JavaClass.Predicates.resideInAPackage("..modules.(*).[api|configuration]..");
+        return theModulePublicPredicate;
     }
 }
