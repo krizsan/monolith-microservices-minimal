@@ -54,7 +54,8 @@ public class ArchUnitTests {
 
     /**
      * Lists the classes of the application, including test-classes, and the slice to which
-     * each class belongs to, if any.
+     * each class belongs,if any, to having applied the {@code ModulesSliceAssignment} to group the
+     * application classes into slices.
      */
     @Test
     public void listClassSliceTest() {
@@ -64,6 +65,7 @@ public class ArchUnitTests {
         /* Maps Java classes to slices specifying which classes belong to a slice. */
         final SliceAssignment theClassToModulesSliceMapper = new ModulesSliceAssignment();
 
+        /* List the slices and the classes belonging to each slice. */
         for (JavaClass theJavaClass : theClassesToCheck) {
             final SliceIdentifier theJavaClassSlice = theClassToModulesSliceMapper.getIdentifierOf(theJavaClass);
             final String theJavaClassName = String.format("%-120s", theJavaClass.getName());
@@ -123,7 +125,7 @@ public class ArchUnitTests {
      * Lists all the classes in the application that do not belong to a module.
      */
     @Test
-    public void nonModuleClassesTest() {
+    public void listNonModuleClassesTest() {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
             .importPackages(APPLICATION_ROOT_PACKAGE);

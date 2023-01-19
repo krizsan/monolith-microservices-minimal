@@ -4,11 +4,13 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.library.dependencies.SliceAssignment;
 import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * A {@code SliceAssignment} which maps classes in modules to ArchUnit slices.
+ * A {@code SliceAssignment} which maps non-public classes in modules to ArchUnit slices.
  *
  * @author Ivan Krizsan
  */
@@ -19,7 +21,7 @@ public class ModulesSliceAssignment implements SliceAssignment {
     /** Regular expression used to find names of modules given a package name. */
     public static final String MODULE_NAME_REGEXP =
         "\\." + MODULES_ROOT_PACKAGE_NAME + "\\.([a-z0-9_]*)";
-    /** Regular expression used to find names of firstl-level subpackages in modules given a package name. */
+    /** Regular expression used to find names of first-level subpackages in modules given a package name. */
     public static final String MODULE_NAME_WITH_SUBPACKAGES_REGEXP =
         MODULE_NAME_REGEXP + "\\.([a-z0-9_]*)";
     public static final Pattern MODULE_NAME_REGEXP_PATTERN = Pattern.compile(MODULE_NAME_REGEXP,
@@ -33,11 +35,8 @@ public class ModulesSliceAssignment implements SliceAssignment {
      * match for a package name.
      */
     public static final int MODULE_SUBPACKAGE_REGEXP_GROUP_INDEX = 2;
-    /** Name of API first-level subpackage in module that should be accessible from anywhere. */
-    public static final String MODULE_API_PACKAGE_NAME = "api";
-    /** Name of configuration first-level subpackage in module that should be accessible from anywhere. */
-    public static final String MODULE_CONFIGURATION_PACKAGE_NAME = "configuration";
-
+    /** Name of first-level subpackages in modules that may be accessed from anywhere. */
+    public static final List<String> MODULE_PUBLIC_PACKAGES = Arrays.asList("api", "configuration");
 
     @Override
     public String getDescription() {
@@ -62,10 +61,9 @@ public class ModulesSliceAssignment implements SliceAssignment {
             final boolean theModuleSubpackageNameFoundFlag = theModuleSubpackageMatcher.find();
             if (theModuleSubpackageNameFoundFlag) {
                 final String theModuleSubpackageName = theModuleSubpackageMatcher
-                    .group(MODULE_SUBPACKAGE_REGEXP_GROUP_INDEX);
+                    .group(MODULE_SUBPACKAGE_REGEXP_GROUP_INDEX).toLowerCase();
 
-                if (MODULE_API_PACKAGE_NAME.equalsIgnoreCase(theModuleSubpackageName)
-                    || MODULE_CONFIGURATION_PACKAGE_NAME.equalsIgnoreCase(theModuleSubpackageName)) {
+                if (MODULE_PUBLIC_PACKAGES.contains(theModuleSubpackageName)) {
                     /*
                      * Supplied class is located in a package in a module to which access from anywhere
                      * is allowed and should thus not belong to any slice.
