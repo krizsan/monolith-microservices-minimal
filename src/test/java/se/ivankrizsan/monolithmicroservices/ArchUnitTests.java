@@ -147,9 +147,8 @@ public class ArchUnitTests {
 
     /**
      * Ensures that:
-     * <li>Application code not belonging to any module may not be accessed from the public or non-public parts of modules.</li>
-     * <li>Code in the non-public part of a module may only be accessed by the code in the public part of the module.</li>
-     * <li>Public parts of modules may be accessed by code not belonging to a module and non-public parts of modules.</li>
+     * <li>Application code not belonging to any module may not have dependencies to non-public parts of modules.</li>
+     * <li>Code in modules are not allowed to have dependencies to application code not belonging to any module.</li>
      *
      * The application code is divided in three layers:
      * <li>Public Module - Parts of modules that may be accessed from other modules and external, non-module, code.</li>
@@ -157,7 +156,10 @@ public class ArchUnitTests {
      * <li>Non-module - Code outside of modules</li>
      *
      * <br/><b>Note!</b> No control of access between non-public parts of modules is performed - this is verified in the
-     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.
+     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.<br/>
+     * In addition, no control is made that all dependencies from public parts of modules to non-public parts
+     * of modules are within one and the same module. That is a dependency from the public part of a module
+     * to the non-public part of a module is not allowed to cross module boundaries.
      */
     @Test
     public void moduleNonPublicToExternalAccessButNotViceVersaTest() {
