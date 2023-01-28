@@ -79,7 +79,7 @@ public class ArchUnitTests {
      * There should be no dependencies between slices.
      */
     @Test
-    public void noAccessBetweenNonPublicPartsOfModulesTest() {
+    public void accessRuleOneTest() {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
             .importPackages(APPLICATION_ROOT_PACKAGE);
@@ -162,7 +162,7 @@ public class ArchUnitTests {
      * to the non-public part of a module is not allowed to cross module boundaries.
      */
     @Test
-    public void moduleNonPublicToExternalAccessButNotViceVersaTest() {
+    public void accessRulesTwoAndThreeTest() {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
             .importPackages(APPLICATION_ROOT_PACKAGE);
