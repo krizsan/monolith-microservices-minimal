@@ -4,10 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.library.dependencies.SliceAssignment;
 import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Optional;
 
 /**
  * A {@code SliceAssignment} which maps non-public classes in modules to ArchUnit slices.
@@ -15,29 +12,6 @@ import java.util.regex.Pattern;
  * @author Ivan Krizsan
  */
 public class ModulesSliceAssignment implements SliceAssignment {
-    /* Constant(s): */
-    /** Package in which module packages are located. */
-    public static final String MODULES_ROOT_PACKAGE_NAME = "modules";
-    /** Regular expression used to find names of modules given a package name. */
-    public static final String MODULE_NAME_REGEXP =
-        "\\." + MODULES_ROOT_PACKAGE_NAME + "\\.([a-z0-9_]*)";
-    /** Regular expression used to find names of first-level subpackages in modules given a package name. */
-    public static final String MODULE_NAME_WITH_SUBPACKAGES_REGEXP =
-        MODULE_NAME_REGEXP + "\\.([a-z0-9_]*)";
-    public static final Pattern MODULE_NAME_REGEXP_PATTERN = Pattern.compile(MODULE_NAME_REGEXP,
-        Pattern.CASE_INSENSITIVE);
-    public static final Pattern MODULE_NAME_WITH_SUBPACKAGES_REGEXP_PATTERN =
-        Pattern.compile(MODULE_NAME_WITH_SUBPACKAGES_REGEXP, Pattern.CASE_INSENSITIVE);
-    /** Group in which module name can be found when there is a regexp match for a package name. */
-    public static final int MODULE_NAME_REGEXP_GROUP_INDEX = 1;
-    /**
-     * Group in which module first-level subpackage name can be found when there is a regexp
-     * match for a package name.
-     */
-    public static final int MODULE_SUBPACKAGE_REGEXP_GROUP_INDEX = 2;
-    /** Name of first-level subpackages in modules that may be accessed from anywhere. */
-    public static final List<String> MODULE_PUBLIC_PACKAGES = Arrays.asList("api", "configuration");
-
     @Override
     public String getDescription() {
         return "non-public parts of modules";
@@ -46,36 +20,26 @@ public class ModulesSliceAssignment implements SliceAssignment {
     @Override
     public SliceIdentifier getIdentifierOf(final JavaClass inJavaClass) {
         /* Does the supplied class belong to a module? */
-        final String theJavaClassPackageName = inJavaClass.getPackageName();
-        final Matcher theModuleNameMatcher = MODULE_NAME_REGEXP_PATTERN.matcher(theJavaClassPackageName);
-        final boolean theModuleNameFoundFlag = theModuleNameMatcher.find();
-        if (theModuleNameFoundFlag) {
-            final String theModuleName = theModuleNameMatcher.group(MODULE_NAME_REGEXP_GROUP_INDEX);
-
+        final Optional<String> theModuleNameOptional = ArchUnitModuleUtils.moduleFromJavaClass(inJavaClass);
+        if (theModuleNameOptional.isPresent()) {
             /*
              * Does the supplied class belong to a package in the module to which access
              * from anywhere is allowed?
              */
-            final Matcher theModuleSubpackageMatcher = MODULE_NAME_WITH_SUBPACKAGES_REGEXP_PATTERN
-                .matcher(theJavaClassPackageName);
-            final boolean theModuleSubpackageNameFoundFlag = theModuleSubpackageMatcher.find();
-            if (theModuleSubpackageNameFoundFlag) {
-                final String theModuleSubpackageName = theModuleSubpackageMatcher
-                    .group(MODULE_SUBPACKAGE_REGEXP_GROUP_INDEX).toLowerCase();
-
-                if (MODULE_PUBLIC_PACKAGES.contains(theModuleSubpackageName)) {
-                    /*
-                     * Supplied class is located in a package in a module to which access from anywhere
-                     * is allowed and should thus not belong to any slice.
-                     */
-                    return SliceIdentifier.ignore();
-                } else {
-                    /*
-                     * Supplied package is located in a module and access to the class should not be
-                     * allowed from other modules.
-                     */
-                    return SliceIdentifier.of(theModuleName);
-                }
+            if (ArchUnitModuleUtils.isLocatedInModulePublic(inJavaClass)) {
+                /*
+                 * Supplied class is located in a package in a module to which access from anywhere
+                 * is allowed and public parts of modules are not to be included in slices so this class
+                 * should not belong to any slice.
+                 */
+                return SliceIdentifier.ignore();
+            } else {
+                /*
+                 * Supplied package is located in a module and access to the class should not be
+                 * allowed from other modules.
+                 */
+                final String theModuleName = theModuleNameOptional.get();
+                return SliceIdentifier.of(theModuleName);
             }
         }
 

@@ -7,14 +7,16 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.PackageMatcher;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchCondition;
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition;
 import com.tngtech.archunit.library.Architectures;
 import com.tngtech.archunit.library.dependencies.SliceAssignment;
-import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -29,7 +31,6 @@ import java.util.function.Predicate;
 public class ArchUnitTests {
     public static final String APPLICATION_ROOT_PACKAGE = "se.ivankrizsan";
 
-
     /**
      * Lists the dependencies of the classes in this example application contained
      * in the specified root package.
@@ -41,7 +42,7 @@ public class ArchUnitTests {
             .importPackages(APPLICATION_ROOT_PACKAGE);
 
         for (JavaClass theJavaClass : theClassesToCheck) {
-            final Set<Dependency> theClassDependencies =  theJavaClass.getDirectDependenciesFromSelf();
+            final Set<Dependency> theClassDependencies = theJavaClass.getDirectDependenciesFromSelf();
             log.info("Class {} has the following dependencies:", theJavaClass.getName());
             theClassDependencies
                 .stream()
@@ -62,14 +63,11 @@ public class ArchUnitTests {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .importPackages(APPLICATION_ROOT_PACKAGE);
 
-        /* Maps Java classes to slices specifying which classes belong to a slice. */
-        final SliceAssignment theClassToModulesSliceMapper = new ModulesSliceAssignment();
-
         /* List the slices and the classes belonging to each slice. */
         for (JavaClass theJavaClass : theClassesToCheck) {
-            final SliceIdentifier theJavaClassSlice = theClassToModulesSliceMapper.getIdentifierOf(theJavaClass);
+            final Optional<String> theJavaClassSlice = ArchUnitModuleUtils.moduleFromJavaClass(theJavaClass);
             final String theJavaClassName = String.format("%-120s", theJavaClass.getName());
-            log.info("{} - {}", theJavaClassName, theJavaClassSlice.toString());
+            theJavaClassSlice.ifPresent(s -> log.info("{} - {}", theJavaClassName, s));
         }
     }
 
@@ -92,6 +90,64 @@ public class ArchUnitTests {
             .should()
             .notDependOnEachOther()
             .because("this violates module encapsulation")
+            .check(theClassesToCheck);
+    }
+
+    /**
+     * Ensures that:
+     * <li>Application code not belonging to any module may not have dependencies to non-public parts of modules.</li>
+     * <li>Code in modules are not allowed to have dependencies to application code not belonging to any module.</li>
+     * <p>
+     * The application code is divided in three layers:
+     * <li>Public Module - Parts of modules that may be accessed from other modules and external, non-module, code.</li>
+     * <li>Non-public Module - Parts of modules that may not be accessed from anywhere but the public part of the same module.</li>
+     * <li>Non-module - Code outside of modules</li>
+     * <p>
+     * <br/><b>Note!</b> No control of access between non-public parts of modules is performed - this is verified in the
+     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.<br/>
+     * In addition, no control is made that all dependencies from public parts of modules to non-public parts
+     * of modules are within one and the same module. That is a dependency from the public part of a module
+     * to the non-public part of a module is not allowed to cross module boundaries.
+     */
+    @Test
+    public void accessRulesTwoAndThreeTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        Architectures
+            .layeredArchitecture()
+            .consideringAllDependencies()
+            .layer("PublicModule").definedBy(createModulesPublicClassesPredicate())
+            .layer("NonPublicModule").definedBy(createModulesNonPublicClassesPredicate())
+            .layer("NonModule").definedBy(createNonModulesClassesPredicate())
+            .whereLayer("PublicModule").mayOnlyBeAccessedByLayers("NonModule", "NonPublicModule")
+            .whereLayer("NonPublicModule").mayOnlyBeAccessedByLayers("PublicModule")
+            .whereLayer("NonModule").mayNotBeAccessedByAnyLayer()
+            .check(theClassesToCheck);
+    }
+
+    /**
+     * Ensures that no there are no dependencies from classes located in public part of modules
+     * to classes located in non-public parts of other modules.
+     * This test is a complement to the {@code accessRulesTwoAndThreeTest} as far as access rule three
+     * is concerned.
+     */
+    @Test
+    public void accessRuleThreeTest() {
+        final JavaClasses theClassesToCheck = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(APPLICATION_ROOT_PACKAGE);
+
+        final ModulePublicDescribedPredicate resideInModulePublicPart = new ModulePublicDescribedPredicate();
+        final ArchCondition<JavaClass> dependOnClassesInAnotherModulesNonPublicPart =
+            new HasDependencyToOtherModulesNonPublicArchCondition(
+                "has dependency to class in other module's non-public part");
+
+        ArchRuleDefinition
+            .noClasses()
+            .that(resideInModulePublicPart)
+            .should(dependOnClassesInAnotherModulesNonPublicPart)
             .check(theClassesToCheck);
     }
 
@@ -146,40 +202,6 @@ public class ArchUnitTests {
     }
 
     /**
-     * Ensures that:
-     * <li>Application code not belonging to any module may not have dependencies to non-public parts of modules.</li>
-     * <li>Code in modules are not allowed to have dependencies to application code not belonging to any module.</li>
-     *
-     * The application code is divided in three layers:
-     * <li>Public Module - Parts of modules that may be accessed from other modules and external, non-module, code.</li>
-     * <li>Non-public Module - Parts of modules that may not be accessed from anywhere but the public part of the same module.</li>
-     * <li>Non-module - Code outside of modules</li>
-     *
-     * <br/><b>Note!</b> No control of access between non-public parts of modules is performed - this is verified in the
-     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.<br/>
-     * In addition, no control is made that all dependencies from public parts of modules to non-public parts
-     * of modules are within one and the same module. That is a dependency from the public part of a module
-     * to the non-public part of a module is not allowed to cross module boundaries.
-     */
-    @Test
-    public void accessRulesTwoAndThreeTest() {
-        final JavaClasses theClassesToCheck = new ClassFileImporter()
-            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
-            .importPackages(APPLICATION_ROOT_PACKAGE);
-
-        Architectures
-            .layeredArchitecture()
-            .consideringAllDependencies()
-            .layer("PublicModule").definedBy(createModulesPublicClassesPredicate())
-            .layer("NonPublicModule").definedBy(createModulesNonPublicClassesPredicate())
-            .layer("NonModule").definedBy(createNonModulesClassesPredicate())
-            .whereLayer("PublicModule").mayOnlyBeAccessedByLayers("NonModule", "NonPublicModule")
-            .whereLayer("NonPublicModule").mayOnlyBeAccessedByLayers("PublicModule")
-            .whereLayer("NonModule").mayNotBeAccessedByAnyLayer()
-            .check(theClassesToCheck);
-    }
-
-    /**
      * Tests a package-matching expression against a package.
      * Will log the result of the attempted matching and always succeed.
      * Can be used to verify package-matching expressions.
@@ -198,7 +220,7 @@ public class ArchUnitTests {
     /**
      * Creates an ArchUnit predicate that will select classes that:
      * - Are located in a package at least one level below the 'modules' package.
-     *   That is, are located in a module.
+     * That is, are located in a module.
      * - Are not located in a package named 'api' or 'configuration' in a module.
      *
      * @return Predicate that will select non-public module classes.
@@ -210,9 +232,7 @@ public class ArchUnitTests {
             JavaClass.Predicates.resideInAPackage("..modules.(*).[api|configuration]..");
         final DescribedPredicate<JavaClass> theNotModulePublicPredicate =
             DescribedPredicate.not(theModulePublicPredicate);
-        final DescribedPredicate<JavaClass> theModuleNonPublicPredicate =
-            theResideInModulePredicate.and(theNotModulePublicPredicate);
-        return theModuleNonPublicPredicate;
+        return theResideInModulePredicate.and(theNotModulePublicPredicate);
     }
 
     /**
@@ -232,8 +252,6 @@ public class ArchUnitTests {
      * @return Predicate that will select public module classes.
      */
     private DescribedPredicate<JavaClass> createModulesPublicClassesPredicate() {
-        final DescribedPredicate<JavaClass> theModulePublicPredicate =
-            JavaClass.Predicates.resideInAPackage("..modules.(*).[api|configuration]..");
-        return theModulePublicPredicate;
+        return JavaClass.Predicates.resideInAPackage("..modules.(*).[api|configuration]..");
     }
 }
