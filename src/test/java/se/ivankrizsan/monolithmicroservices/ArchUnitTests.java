@@ -107,10 +107,11 @@ public class ArchUnitTests {
      * <li>Non-module - Code outside of modules</li>
      * <p>
      * <br/><b>Note!</b> No control of access between non-public parts of modules is performed - this is verified in the
-     * {@code noAccessBetweenNonPublicPartsOfModulesTest}.<br/>
+     * {@code accessRuleOneTest}.<br/>
      * In addition, no control is made that all dependencies from public parts of modules to non-public parts
-     * of modules are within one and the same module. That is a dependency from the public part of a module
-     * to the non-public part of a module is not allowed to cross module boundaries.
+     * of modules are within one and the same module - that is a dependency from the public part of a module
+     * to the non-public part of a module is not allowed to cross module boundaries. This is verified in the
+     * {@code accessRuleThreeTest}.
      */
     @Test
     public void accessRulesTwoAndThreeTest() {
