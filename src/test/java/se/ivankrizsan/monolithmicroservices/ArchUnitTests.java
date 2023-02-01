@@ -11,12 +11,12 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition;
 import com.tngtech.archunit.library.Architectures;
 import com.tngtech.archunit.library.dependencies.SliceAssignment;
+import com.tngtech.archunit.library.dependencies.SliceIdentifier;
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -63,11 +63,14 @@ public class ArchUnitTests {
         final JavaClasses theClassesToCheck = new ClassFileImporter()
             .importPackages(APPLICATION_ROOT_PACKAGE);
 
+        /* Maps Java classes to slices specifying which classes belong to a slice. */
+        final SliceAssignment theClassToModulesSliceMapper = new ModulesSliceAssignment();
+
         /* List the slices and the classes belonging to each slice. */
         for (JavaClass theJavaClass : theClassesToCheck) {
-            final Optional<String> theJavaClassSlice = ArchUnitModuleUtils.moduleFromJavaClass(theJavaClass);
+            final SliceIdentifier theJavaClassSlice = theClassToModulesSliceMapper.getIdentifierOf(theJavaClass);
             final String theJavaClassName = String.format("%-120s", theJavaClass.getName());
-            theJavaClassSlice.ifPresent(s -> log.info("{} - {}", theJavaClassName, s));
+            log.info("{} - {}", theJavaClassName, theJavaClassSlice.toString());
         }
     }
 
