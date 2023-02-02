@@ -2,7 +2,6 @@ package se.ivankrizsan.monolithmicroservices;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
-import lombok.Getter;
 
 import java.util.Optional;
 
@@ -11,7 +10,6 @@ import java.util.Optional;
  *
  * @author Ivan Krizsan
  */
-@Getter
 public class ModulePublicDescribedPredicate extends DescribedPredicate<JavaClass> {
 
     /**

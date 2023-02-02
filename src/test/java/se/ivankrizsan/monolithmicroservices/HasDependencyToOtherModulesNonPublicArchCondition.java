@@ -5,7 +5,6 @@ import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -17,7 +16,6 @@ import java.util.Optional;
  * @author Ivan Krizsan
  */
 @Slf4j
-@Getter
 public class HasDependencyToOtherModulesNonPublicArchCondition extends ArchCondition<JavaClass> {
 
     /**
@@ -52,7 +50,6 @@ public class HasDependencyToOtherModulesNonPublicArchCondition extends ArchCondi
                             theSourceModule,
                             theDestinationClass.getName(),
                             theDestinationModule);
-                        log.error(theViolationMessage);
                         inConditionEvents.add(SimpleConditionEvent.satisfied(inJavaClassToCheck, theViolationMessage));
                     }
                 }
