@@ -1,4 +1,4 @@
-package se.ivankrizsan.monolithmicroservices.modules.shoppingcart.api;
+package se.ivankrizsan.monolithmicroservices.shoppingcart.api;
 
 /**
  * The shopping cart service manages a shopping cart.

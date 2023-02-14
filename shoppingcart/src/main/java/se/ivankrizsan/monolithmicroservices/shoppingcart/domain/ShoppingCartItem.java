@@ -1,4 +1,4 @@
-package se.ivankrizsan.monolithmicroservices.modules.shoppingcart.domain;
+package se.ivankrizsan.monolithmicroservices.shoppingcart.domain;
 
 import jakarta.persistence.*;
 import lombok.*;

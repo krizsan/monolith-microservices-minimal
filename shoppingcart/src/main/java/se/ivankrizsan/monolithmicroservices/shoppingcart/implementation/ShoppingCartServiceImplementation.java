@@ -1,12 +1,13 @@
-package se.ivankrizsan.monolithmicroservices.modules.shoppingcart.implementation;
+package se.ivankrizsan.monolithmicroservices.shoppingcart.implementation;
 
 import jakarta.transaction.Transactional;
+import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import se.ivankrizsan.monolithmicroservices.modules.shoppingcart.api.ShoppingCartService;
-import se.ivankrizsan.monolithmicroservices.modules.warehouse.api.WarehouseService;
+import se.ivankrizsan.monolithmicroservices.shoppingcart.api.ShoppingCartService;
+import se.ivankrizsan.monolithmicroservices.warehouse.api.WarehouseService;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import java.util.Optional;
  * @author Ivan Krizsan
  */
 @RequiredArgsConstructor
+@NoArgsConstructor
 public class ShoppingCartServiceImplementation implements ShoppingCartService {
     /** Warehouse from which items placed in the shopping cart will be taken. */
     @NonNull
